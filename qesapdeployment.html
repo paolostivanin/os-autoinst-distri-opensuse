@@ -40,8 +40,14 @@
           <li><a href="#qesap_wait_for_ssh">qesap_wait_for_ssh</a></li>
           <li><a href="#qesap_cluster_log_cmds">qesap_cluster_log_cmds</a></li>
           <li><a href="#qesap_cluster_logs">qesap_cluster_logs</a></li>
-          <li><a href="#qesap_get_vnet">qesap_get_vnet</a></li>
-          <li><a href="#qesap_get_az_resource_group">qesap_get_az_resource_group</a></li>
+          <li><a href="#qesap_az_get_vnet">qesap_az_get_vnet</a></li>
+          <li><a href="#qesap_calculate_deployment_name">qesap_calculate_deployment_name</a></li>
+          <li><a href="#qesap_az_get_resource_group">qesap_az_get_resource_group</a></li>
+          <li><a href="#qesap_calculate_az_address_range">qesap_calculate_az_address_range</a></li>
+          <li><a href="#qesap_az_vnet_peering">qesap_az_vnet_peering</a></li>
+          <li><a href="#qesap_az_vnet_peering_delete">qesap_az_vnet_peering_delete</a></li>
+          <li><a href="#qesap_get_peering_name">qesap_get_peering_name</a></li>
+          <li><a href="#qesap_add_server_to_hosts">qesap_add_server_to_hosts</a></li>
         </ul>
       </li>
     </ul>
@@ -292,7 +298,7 @@ Return total time of retry loop in case of pass.</code></pre>
 
 <pre><code>Collect logs from a deployed cluster</code></pre>
 
-<h3 id="qesap_get_vnet">qesap_get_vnet</h3>
+<h3 id="qesap_az_get_vnet">qesap_az_get_vnet</h3>
 
 <p>Return the output of az network vnet list =over 1</p>
 
@@ -304,7 +310,19 @@ Return total time of retry loop in case of pass.</code></pre>
 </dd>
 </dl>
 
-<h3 id="qesap_get_az_resource_group">qesap_get_az_resource_group</h3>
+<h3 id="qesap_calculate_deployment_name">qesap_calculate_deployment_name</h3>
+
+<p>Compose the deployment name. It always has the JobId</p>
+
+<dl>
+
+<dt id="PREFIX---optional-substring-prepend-in-front-of-the-job-id"><b>PREFIX</b> - optional substring prepend in front of the job id</dt>
+<dd>
+
+</dd>
+</dl>
+
+<h3 id="qesap_az_get_resource_group">qesap_az_get_resource_group</h3>
 
 <p>Query and return the resource group used by the qe-sap-deployment</p>
 
@@ -316,13 +334,98 @@ Return total time of retry loop in case of pass.</code></pre>
 </dd>
 </dl>
 
+<h3 id="qesap_calculate_az_address_range">qesap_calculate_az_address_range</h3>
+
+<p>Calculate the vnet and subnet address ranges. The format is 10.ip2.ip3.0/21 and /24 respectively. ip2 and ip3 are calculated using the slot number as seed.</p>
+
+<dl>
+
+<dt id="SLOT---integer-to-be-used-as-seed-in-calculating-addresses"><b>SLOT</b> - integer to be used as seed in calculating addresses</dt>
+<dd>
+
+</dd>
+</dl>
+
+<h3 id="qesap_az_vnet_peering">qesap_az_vnet_peering</h3>
+
+<pre><code>Create a pair of network peering between
+the two provided deployments.</code></pre>
+
+<dl>
+
+<dt id="SOURCE_GROUP---resource-group-of-source"><b>SOURCE_GROUP</b> - resource group of source</dt>
+<dd>
+
+</dd>
+<dt id="TARGET_GROUP---resource-group-of-target"><b>TARGET_GROUP</b> - resource group of target</dt>
+<dd>
+
+</dd>
+<dt id="TIMEOUT---default-is-5-mins"><b>TIMEOUT</b> - default is 5 mins</dt>
+<dd>
+
+</dd>
+</dl>
+
+<h3 id="qesap_az_vnet_peering_delete">qesap_az_vnet_peering_delete</h3>
+
+<pre><code>Delete all the network peering between the two provided deploymnets.</code></pre>
+
+<dl>
+
+<dt id="SOURCE_GROUP---resource-group-of-source.-This-parameter-is-optional-if-not-provided-the-related-peering-will-be-ignored"><b>SOURCE_GROUP</b> - resource group of source. This parameter is optional, if not provided the related peering will be ignored.</dt>
+<dd>
+
+</dd>
+<dt id="TARGET_GROUP---resource-group-of-target.-This-parameter-is-mandatory-and-the-associated-resource-group-is-supposed-to-still-exist"><b>TARGET_GROUP</b> - resource group of target. This parameter is mandatory and the associated resource group is supposed to still exist.</dt>
+<dd>
+
+</dd>
+<dt id="TIMEOUT---default-is-5-mins1"><b>TIMEOUT</b> - default is 5 mins</dt>
+<dd>
+
+</dd>
+</dl>
+
+<h3 id="qesap_get_peering_name">qesap_get_peering_name</h3>
+
+<pre><code>Search for all network peering related to both:
+ - resource group related to the current job
+ - the provided resource group.
+Returns the peering name or
+empty string if a peering doesn&#39;t exist</code></pre>
+
+<dl>
+
+<dt id="RESOURCE_GROUP---resource-group-connected-to-the-peering"><b>RESOURCE_GROUP</b> - resource group connected to the peering</dt>
+<dd>
+
+</dd>
+</dl>
+
+<h3 id="qesap_add_server_to_hosts">qesap_add_server_to_hosts</h3>
+
+<pre><code>Adds a &#39;ip -&gt; name&#39; pair in the end of /etc/hosts in the hosts</code></pre>
+
+<dl>
+
+<dt id="IP---ip-of-server-to-add-to-hosts"><b>IP</b> - ip of server to add to hosts</dt>
+<dd>
+
+</dd>
+<dt id="NAME---name-of-server-to-add-to-hosts"><b>NAME</b> - name of server to add to hosts</dt>
+<dd>
+
+</dd>
+</dl>
+
 <h1 id="POD-ERRORS">POD ERRORS</h1>
 
 <p>Hey! <b>The above document had some coding errors, which are explained below:</b></p>
 
 <dl>
 
-<dt id="Around-line-712">Around line 712:</dt>
+<dt id="Around-line-717">Around line 717:</dt>
 <dd>
 
 <p>&#39;=item&#39; outside of any &#39;=over&#39;</p>
