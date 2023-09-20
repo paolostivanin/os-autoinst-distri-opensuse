@@ -31,6 +31,7 @@
           <li><a href="#qesap_yaml_replace">qesap_yaml_replace</a></li>
           <li><a href="#qesap_execute">qesap_execute</a></li>
           <li><a href="#qesap_ansible_log_find_timeout">qesap_ansible_log_find_timeout</a></li>
+          <li><a href="#qesap_ansible_log_find_missing_sudo_password">qesap_ansible_log_find_missing_sudo_password</a></li>
           <li><a href="#qesap_get_inventory">qesap_get_inventory</a></li>
           <li><a href="#qesap_get_nodes_number">qesap_get_nodes_number</a></li>
           <li><a href="#qesap_get_terraform_dir">qesap_get_terraform_dir</a></li>
@@ -143,7 +144,8 @@ Return is only valid if failok = 1</code></pre>
 
 <h3 id="qesap_pip_install">qesap_pip_install</h3>
 
-<pre><code>Install all Python requirements of the qe-sap-deployment in a dedicated virtual environment</code></pre>
+<pre><code>Install all Python requirements of the qe-sap-deployment
+in a dedicated virtual environment</code></pre>
 
 <h3 id="qesap_upload_logs">qesap_upload_logs</h3>
 
@@ -193,13 +195,45 @@ Execute qesap glue script commands. Check project documentation for available op
 https://github.com/SUSE/qe-sap-deployment
 Test only returns execution result, failure has to be handled by calling method.</code></pre>
 
+<dl>
+
+<dt id="CMD---qesap.py-subcommand-to-run"><b>CMD</b> - qesap.py subcommand to run</dt>
+<dd>
+
+</dd>
+<dt id="CMD_OPTIONS---set-of-arguments-for-the-qesap.py-subcommand"><b>CMD_OPTIONS</b> - set of arguments for the qesap.py subcommand</dt>
+<dd>
+
+</dd>
+<dt id="VERBOSE---activate-verbosity-in-qesap.py"><b>VERBOSE</b> - activate verbosity in qesap.py</dt>
+<dd>
+
+</dd>
+<dt id="TIMEOUT---max-expected-execution-time-back"><b>TIMEOUT</b> - max expected execution time =back</dt>
+<dd>
+
+</dd>
+</dl>
+
 <h3 id="qesap_ansible_log_find_timeout">qesap_ansible_log_find_timeout</h3>
 
 <pre><code>Return the Timeout error found in the Ansible log or not</code></pre>
 
+<h3 id="qesap_ansible_log_find_missing_sudo_password">qesap_ansible_log_find_missing_sudo_password</h3>
+
+<pre><code>Return the &#39;&quot;msg&quot;: &quot;Missing sudo password&quot;&#39; error found in the Ansible log or not</code></pre>
+
 <h3 id="qesap_get_inventory">qesap_get_inventory</h3>
 
 <pre><code>Return the path of the generated inventory</code></pre>
+
+<dl>
+
+<dt id="PROVIDER---Cloud-provider-name-using-same-format-of-PUBLIC_CLOUD_PROVIDER-setting"><b>PROVIDER</b> - Cloud provider name using same format of PUBLIC_CLOUD_PROVIDER setting</dt>
+<dd>
+
+</dd>
+</dl>
 
 <h3 id="qesap_get_nodes_number">qesap_get_nodes_number</h3>
 
@@ -209,6 +243,14 @@ Test only returns execution result, failure has to be handled by calling method.
 
 <pre><code>Return the path used by the qesap script as -chdir argument for terraform
 It is useful if test would like to call terraform</code></pre>
+
+<dl>
+
+<dt id="PROVIDER---Cloud-provider-name-using-same-format-of-PUBLIC_CLOUD_PROVIDER-setting1"><b>PROVIDER</b> - Cloud provider name using same format of PUBLIC_CLOUD_PROVIDER setting</dt>
+<dd>
+
+</dd>
+</dl>
 
 <h3 id="qesap_get_ansible_roles_dir">qesap_get_ansible_roles_dir</h3>
 
@@ -229,6 +271,14 @@ Prepare terraform environment.
 For variables example see &#39;qesap_yaml_replace&#39;
 Returns only result, failure handling has to be done by calling method.</code></pre>
 
+<dl>
+
+<dt id="PROVIDER---Cloud-provider-name-used-to-optionally-activate-AWS-credential-code"><b>PROVIDER</b> - Cloud provider name, used to optionally activate AWS credential code</dt>
+<dd>
+
+</dd>
+</dl>
+
 <h3 id="qesap_ansible_get_playbook">qesap_ansible_get_playbook</h3>
 
 <pre><code>Download the playbook from the test code repo
@@ -237,9 +287,7 @@ that is on the worker within the running JompHost.</code></pre>
 <h3 id="qesap_ansible_cmd">qesap_ansible_cmd</h3>
 
 <pre><code>Use Ansible to run a command remotely on some or all
-the hosts from the inventory.yaml
-
-qesap_prepare_env(cmd=&gt;{string}, provider =&gt; &#39;aws&#39;);</code></pre>
+the hosts from the inventory.yaml</code></pre>
 
 <dl>
 
@@ -328,6 +376,10 @@ remotely executed command.</code></pre>
 <dd>
 
 </dd>
+<dt id="TIMEOUT---max-expected-execution-time-default-180sec.-Same-timeout-is-used-both-for-the-execution-of-script_output.yaml-and-for-the-fetch_file.-Timeout-of-the-same-amount-is-started-two-times"><b>TIMEOUT</b> - max expected execution time, default 180sec. Same timeout is used both for the execution of script_output.yaml and for the fetch_file. Timeout of the same amount is started two times.</dt>
+<dd>
+
+</dd>
 <dt id="REMOTE_PATH---Path-to-save-file-in-the-remote-without-file-name"><b>REMOTE_PATH</b> - Path to save file in the remote (without file name)</dt>
 <dd>
 
@@ -361,6 +413,10 @@ remotely executed command.</code></pre>
 
 </dd>
 <dt id="FAILOK---if-not-set-Ansible-failure-result-in-die3"><b>FAILOK</b> - if not set, Ansible failure result in die</dt>
+<dd>
+
+</dd>
+<dt id="TIMEOUT---max-expected-execution-time"><b>TIMEOUT</b> - max expected execution time</dt>
 <dd>
 
 </dd>
@@ -419,6 +475,10 @@ Return the local path of the downloaded file.</code></pre>
 <dd>
 
 </dd>
+<dt id="TIMEOUT---max-expected-execution-time-default-180sec"><b>TIMEOUT</b> - max expected execution time, default 180sec</dt>
+<dd>
+
+</dd>
 <dt id="FILE---file-name-of-the-local-copy-of-the-file"><b>FILE</b> - file name of the local copy of the file</dt>
 <dd>
 
@@ -441,7 +501,7 @@ as required by the QE-SAP Terraform &amp; Ansible deployment code.</code></pre>
 <h3 id="qesap_remote_hana_public_ips">qesap_remote_hana_public_ips</h3>
 
 <pre><code>Return a list of the public IP addresses of the systems
-deployed by qesapdeployment, as reported by C&lt;terraform output&gt;.
+deployed by qe-sap-deployment, as reported by C&lt;terraform output&gt;.
 Needs to run after C&lt;qesap_execute(cmd =&gt; &#39;terraform&#39;);&gt; call.</code></pre>
 
 <h3 id="qesap_wait_for_ssh">qesap_wait_for_ssh</h3>
@@ -804,13 +864,19 @@ qesap_export_instances()</code></pre>
 
 <dl>
 
-<dt id="Around-line-927">Around line 927:</dt>
+<dt id="Around-line-429">Around line 429:</dt>
 <dd>
 
 <p>You forgot a &#39;=back&#39; before &#39;=head3&#39;</p>
 
 </dd>
-<dt id="Around-line-1004">Around line 1004:</dt>
+<dt id="Around-line-983">Around line 983:</dt>
+<dd>
+
+<p>You forgot a &#39;=back&#39; before &#39;=head3&#39;</p>
+
+</dd>
+<dt id="Around-line-1060">Around line 1060:</dt>
 <dd>
 
 <p>&#39;=item&#39; outside of any &#39;=over&#39;</p>
