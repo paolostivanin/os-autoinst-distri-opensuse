@@ -5,7 +5,4 @@ schedule:
     - installation/bootloader_start
     - boot/boot_to_desktop
     - console/consoletest_setup
-    - security/lynis/lynis_setup
-    - security/lynis/lynis_perform_system_audit
-    - security/lynis/lynis_analyze_system_audit
-    - security/lynis/lynis_harden_index
+    - security/lynis/lynis_create_baseline
