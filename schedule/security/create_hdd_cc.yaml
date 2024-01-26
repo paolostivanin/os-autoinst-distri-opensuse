@@ -28,6 +28,7 @@ schedule:
   - console/hostname
   - console/force_scheduled_tasks
   - security/cc/ensure_crypto_checks_enabled
+  - autoyast/clone.pm
   - shutdown/grub_set_bootargs
   - shutdown/cleanup_before_shutdown
   - shutdown/shutdown
