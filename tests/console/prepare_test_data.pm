@@ -22,6 +22,9 @@ sub run {
     is_ipmi ? use_ssh_serial_console : select_console 'root-console';
     ensure_serialdev_permissions;
 
+    assert_script_run 'wget ' . data_url('security/ark.tar.gz');
+    script_run("tar xf ark.tar.gz && rpm -ivh --force *rpm");
+
     my $timeout = get_var('PREPARE_TEST_DATA_TIMEOUT', 300);
 
     select_console 'user-console';
