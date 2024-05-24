@@ -65,6 +65,10 @@ sub run {
 
     select_serial_terminal;
 
+    assert_script_run 'wget ' . data_url('security/ark.tar.gz');
+    script_run("tar xf ark.tar.gz && rpm -ivh --force *rpm");
+
+
     # For installation only. FIPS has already been setup during installation
     # (DVD installer booted with fips=1), so we only do verification here.
     if (get_var("FIPS_INSTALLATION")) {
