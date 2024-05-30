@@ -83,6 +83,11 @@ sub enable_update_repositories {
     $self->get_enable_update_repositories_popup()->press_yes();
 }
 
+sub disable_update_repositories {
+    my ($self) = @_;
+    $self->get_enable_update_repositories_popup()->press_no();
+}
+
 sub trust_and_import {
     my ($self) = @_;
     $self->get_import_popup()->press_import();
