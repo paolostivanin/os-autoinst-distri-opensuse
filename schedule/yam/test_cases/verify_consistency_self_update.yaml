@@ -1,0 +1,8 @@
+name: verify_consistency_self_update
+description:    >
+    This test the consistency of self updates.
+schedule:
+    - installation/bootloader_start
+    - boot/boot_to_desktop
+    - console/consoletest_setup
+    - yam/verify_consistency_self_update
