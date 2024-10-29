@@ -21,8 +21,8 @@ sub run {
 
     my $cont = 1;
     while ($cont) {
-        script_output("busctl list | grep -E '1\\.27|1\\.28|1\\.34|1\\.35' > $log_file");
-        if (script_output("grep -E '1\\.27|1\\.28|1\\.34|1\\.35' $log_file") == 0) {
+        script_output("busctl list | grep -E '1\\.31|1\\.39|1\\.41' > $log_file");
+        if (script_output("grep -E '1\\.31|1\\.39|1\\.41' $log_file") == 0) {
             record_soft_failure(script_output("cat $log_file"));
             $cont = 0;
         }
