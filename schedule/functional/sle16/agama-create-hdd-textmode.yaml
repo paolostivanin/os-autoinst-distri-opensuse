@@ -8,7 +8,13 @@ schedule:
     - installation/first_boot
     - console/system_prepare
     - console/hostname
+    - '{{custom_kernel}}'
     - console/force_scheduled_tasks
     - shutdown/grub_set_bootargs
     - shutdown/cleanup_before_shutdown
     - shutdown/shutdown
+conditional_schedule:
+    custom_kernel:
+        CUSTOM_KERNEL:
+            1:
+                - security/add_nosha1_kernel
