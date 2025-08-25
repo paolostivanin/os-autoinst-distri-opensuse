@@ -27,17 +27,17 @@ my $svn_pass = 'testpass';
 sub setup_apache {
     zypper_call('in apache2 subversion-server openssl');
 
-    # Enable SSL
-    assert_script_run('a2enmod ssl');
+    # Host entries for local testing
     assert_script_run("echo '127.0.0.1 $server_name localhost' > /etc/hosts");
+    assert_script_run("echo 'ServerName $server_name' > /etc/apache2/conf.d/fqdn.conf");
+    assert_script_run("test -d /srv/www/vhosts/$server_name || mkdir -p /srv/www/vhosts/$server_name");
 
-    # Generate SSL cert
-    assert_script_run("gensslcert -n $server_name -e webmaster\@$server_name");
-
+    # Generate self-signed certificate (CN = $server_name)
+    assert_script_run("rm -f /etc/apache2/ssl.crt/$server_name* /etc/apache2/ssl.key/$server_name*");
+    assert_script_run("gensslcert -n $server_name -e webmaster\@$server_name -a DNS:example-ssl.com");
     # Configure SSL vhost
     type_string("cat >> $vhost_ssl_conf <<EOF
 <IfDefine SSL>
-<IfDefine !NOSSL>
 <VirtualHost _default_:443>
     DocumentRoot \"/srv/www/vhosts/$server_name\"
     ServerName $server_name
@@ -49,7 +49,6 @@ sub setup_apache {
     SSLEngine on
     SSLCertificateFile /etc/apache2/ssl.crt/$server_name-server.crt
     SSLCertificateKeyFile /etc/apache2/ssl.key/$server_name-server.key
-    SSLCertificateChainFile /etc/apache2/ssl.crt/$server_name-ca.crt
 
     <Directory \"/srv/www/vhosts/$server_name\">
         Options Indexes FollowSymLinks
@@ -58,20 +57,18 @@ sub setup_apache {
     </Directory>
 </VirtualHost>
 </IfDefine>
-</IfDefine>
 EOF
 ");
 
-    # Ensure apache runs with SSL
+    # Force Apache SSL
     assert_script_run("sed -i '/^APACHE_SERVER_FLAGS=*/c\\APACHE_SERVER_FLAGS=\"SSL\"' /etc/sysconfig/apache2");
 }
 
 sub setup_svn {
-    # Configure Subversion + Auth
+    # Configure SVN auth
     assert_script_run("htpasswd -cb /etc/apache2/svn.passwd $svn_user $svn_pass");
+
     type_string("cat >> $svn_conf_file <<EOF
-LoadModule dav_module       /usr/lib64/apache2/mod_dav.so
-LoadModule dav_svn_module   /usr/lib64/apache2/mod_dav_svn.so
 <IfModule mod_dav_svn.c>
 <Location /repos>
     DAV svn
@@ -85,6 +82,10 @@ LoadModule dav_svn_module   /usr/lib64/apache2/mod_dav_svn.so
 EOF
 ");
 
+    # Enable Apache modules
+    assert_script_run('a2enmod ssl dav dav_svn dav_fs');
+
+    # Start Apache
     systemctl('restart apache2');
     systemctl('is-active apache2');
 
@@ -94,7 +95,7 @@ EOF
     assert_script_run("chown -R wwwrun:wwwrun $repo_root");
 
     # Import initial project structure
-    assert_script_run('cd /tmp && mkdir mytestproj && cd mytestproj');
+    assert_script_run("cd /tmp && rm -rf $test_project && mkdir $test_project && cd $test_project");
     assert_script_run('mkdir configurations options main');
     assert_script_run('echo "testconf1" > configurations/testconf1.cfg');
     assert_script_run('echo "testopts1" > options/testopts1.cfg');
@@ -116,43 +117,44 @@ sub run {
     setup_apache;
     setup_svn;
 
-    # Allow SVN to accept the self-signed cert automatically
-    assert_script_run("yes p | svn ls " . svn_url() . " --username $svn_user --password $svn_pass");
+    my $svn_opts = "--username $svn_user --password $svn_pass --non-interactive --trust-server-cert";
 
-    # Checkout + Update flow
-    assert_script_run("svn co " . svn_url() . " --username $svn_user --password $svn_pass");
+    # SVN initial listing
+    assert_script_run("svn ls " . svn_url() . " $svn_opts");
+
+    # Checkout + update + commit
+    assert_script_run("svn co " . svn_url() . " $svn_opts");
     assert_script_run("cd $test_project && echo 'newline' >> configurations/testconf1.cfg");
-    validate_script_output("svn commit -m 'Add a new line' --username $svn_user --password $svn_pass", sub { m/Committed/ });
-    assert_script_run("svn update --username $svn_user --password $svn_pass");
+    validate_script_output("svn commit -m 'Add a new line' $svn_opts", sub { m/Committed/ });
+    assert_script_run("svn update $svn_opts");
 
-    # Diff & Log (different HTTP REPORT/GET requests)
-    validate_script_output("svn diff --username $svn_user --password $svn_pass", sub { m/newline/ });
-    validate_script_output("svn log --username $svn_user --password $svn_pass", sub { m/Init commit/ });
+    # Diff & Log
+    validate_script_output("svn diff $svn_opts", sub { m/newline/ });
+    validate_script_output("svn log $svn_opts", sub { m/Init commit/ });
 
     # Add + Delete files
     assert_script_run("cp /etc/hosts configurations/");
-    validate_script_output("svn add configurations/hosts", sub { m/A\s+configurations\/hosts/ });
-    validate_script_output("svn commit -m 'Add hosts file' --username $svn_user --password $svn_pass", sub { m/Committed/ });
-    validate_script_output("svn delete configurations/testconf1.cfg", sub { m/D\s+configurations\/testconf1.cfg/ });
-    validate_script_output("svn commit -m 'Delete testconf1.cfg' --username $svn_user --password $svn_pass", sub { m/Committed/ });
+    validate_script_output("svn add configurations/hosts $svn_opts", sub { m/A\s+configurations\/hosts/ });
+    validate_script_output("svn commit -m 'Add hosts file' $svn_opts", sub { m/Committed/ });
+    validate_script_output("svn delete configurations/testconf1.cfg $svn_opts", sub { m/D\s+configurations\/testconf1.cfg/ });
+    validate_script_output("svn commit -m 'Delete testconf1.cfg' $svn_opts", sub { m/Committed/ });
 
-    # Concurrency test (multi-checkout sync)
-    assert_script_run("cd && svn co " . svn_url() . " $test_project-2 --username $svn_user --password $svn_pass");
+    # Concurrency test
+    assert_script_run("cd && svn co " . svn_url() . " $test_project-2 $svn_opts");
     assert_script_run("cd $test_project-2 && echo 'from_second_wc' >> options/testopts1.cfg");
-    validate_script_output("svn commit -m 'Commit from second WC' --username $svn_user --password $svn_pass", sub { m/Committed/ });
-    assert_script_run("cd ../$test_project && svn update --username $svn_user --password $svn_pass");
+    validate_script_output("svn commit -m 'Commit from second WC' $svn_opts", sub { m/Committed/ });
+    assert_script_run("cd ../$test_project && svn update $svn_opts");
     validate_script_output("grep from_second_wc options/testopts1.cfg", sub { m/from_second_wc/ });
 
-    # TLS check: only allow TLSv1.2 and test connection
+    # TLS 1.2 enforcement
     assert_script_run("sed -i '/SSLEngine on/a SSLProtocol -all +TLSv1.2' $vhost_ssl_conf");
     systemctl('restart apache2');
-    assert_script_run("openssl s_client -connect localhost:443 -tls1_2 < /dev/null | grep 'SSL-Session'");
-    assert_script_run("svn ls " . svn_url() . " --username $svn_user --password $svn_pass");
+    assert_script_run("openssl s_client -connect localhost:443 -tls1_2 -servername $server_name < /dev/null | grep 'SSL-Session'");
+    assert_script_run("svn ls " . svn_url() . " $svn_opts");
 
-    # Expired cert test (expect failure)
+    # Expired cert test
     assert_script_run("gensslcert -n expired.$server_name -e webmaster\@$server_name -c --days 0");
-    # This should fail because cert is expired
-    script_run("svn ls https://expired.$server_name/repos", 90);
+    script_run("svn ls https://expired.$server_name/repos");
 
     # Cleanup
     assert_script_run("cd && rm -rf $test_project $test_project-2");
