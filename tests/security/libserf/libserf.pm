@@ -104,6 +104,7 @@ EOF
         "svn import /tmp/$test_project/ file://$repo_root/$test_project -m \"Init commit\"",
         sub { m/Committed/ }
     );
+    assert_script_run("chown -R wwwrun:wwwrun $repo_root/db/rep-cache.db*");
 }
 
 sub svn_url {
@@ -125,11 +126,10 @@ sub run {
     # Checkout + update + commit
     assert_script_run("svn co " . svn_url() . " $svn_opts");
     assert_script_run("cd $test_project && echo 'newline' >> configurations/testconf1.cfg");
+    validate_script_output("svn diff $svn_opts", sub { m/^\+newline/m });
     validate_script_output("svn commit -m 'Add a new line' $svn_opts", sub { m/Committed/ });
     assert_script_run("svn update $svn_opts");
 
-    # Diff & Log
-    validate_script_output("svn diff $svn_opts", sub { m/newline/ });
     validate_script_output("svn log $svn_opts", sub { m/Init commit/ });
 
     # Add + Delete files
