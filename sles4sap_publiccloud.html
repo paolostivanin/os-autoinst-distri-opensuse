@@ -15,6 +15,7 @@
   <li><a href="#DESCRIPTION">DESCRIPTION</a>
     <ul>
       <li><a href="#run_cmd-run_cmd-cmd-command-runas-user-timeout-60">run_cmd run_cmd(cmd =&gt; &#39;command&#39;, [runas =&gt; &#39;user&#39;, timeout =&gt; 60]);</a></li>
+      <li><a href="#run_cmd_retry-run_cmd_retry-cmd-command-retry-3-timeout-60-delay-10">run_cmd_retry run_cmd_retry(cmd =&gt; &#39;command&#39;, [retry =&gt; 3, timeout =&gt; 60, delay =&gt; 10]);</a></li>
       <li><a href="#get_promoted_hostname-get_promoted_hostname">get_promoted_hostname() get_promoted_hostname();</a></li>
       <li><a href="#sles4sap_cleanup">sles4sap_cleanup</a></li>
       <li><a href="#get_hana_topology-Parses-command-output-returns-hash-of-hashes-containing-values-for-each-host">get_hana_topology Parses command output, returns hash of hashes containing values for each host.</a></li>
@@ -49,6 +50,7 @@
       <li><a href="#saphanasr_showAttr_version">saphanasr_showAttr_version</a></li>
       <li><a href="#wait_for_cluster">wait_for_cluster</a></li>
       <li><a href="#wait_for_zypper">wait_for_zypper</a></li>
+      <li><a href="#check_zypper_ref">check_zypper_ref</a></li>
       <li><a href="#wait_for_idle">wait_for_idle</a></li>
     </ul>
   </li>
@@ -84,6 +86,36 @@ otherwise it will be executed as root.</code></pre>
 
 </dd>
 <dt id="pass-through-all-other-arguments-supported-by-run_ssh_command"><b>...</b> - pass through all other arguments supported by run_ssh_command</dt>
+<dd>
+
+</dd>
+</dl>
+
+<h2 id="run_cmd_retry-run_cmd_retry-cmd-command-retry-3-timeout-60-delay-10">run_cmd_retry run_cmd_retry(cmd =&gt; &#39;command&#39;, [retry =&gt; 3, timeout =&gt; 60, delay =&gt; 10]);</h2>
+
+<pre><code>Runs a command C&lt;cmd&gt; via ssh in the given VM and log the output.
+If command fails or C&lt;timeout&gt; is reached, then the command will be
+retried for C&lt;retry&gt; times, with C&lt;delay&gt; seconds of interval in between.</code></pre>
+
+<dl>
+
+<dt id="cmd---command-string-to-be-executed-remotely1"><b>cmd</b> - command string to be executed remotely</dt>
+<dd>
+
+</dd>
+<dt id="timeout---command-execution-timeout1"><b>timeout</b> - command execution timeout</dt>
+<dd>
+
+</dd>
+<dt id="retry---number-of-retry-attempts"><b>retry</b> - number of retry attempts</dt>
+<dd>
+
+</dd>
+<dt id="delay---idle-time-between-retry-attempts"><b>delay</b> - idle time between retry attempts</dt>
+<dd>
+
+</dd>
+<dt id="pass-through-all-other-arguments-supported-by-run_cmd"><b>...</b> - pass through all other arguments supported by run_cmd</dt>
 <dd>
 
 </dd>
@@ -544,6 +576,22 @@ Returns normally if Zypper is not locked or dies after a maximum number of retri
 
 </dd>
 <dt id="runas---If-runas-defined-command-will-be-executed-as-specified-user-otherwise-it-will-be-executed-as-cloudadmin"><b>runas</b> - If &#39;runas&#39; defined, command will be executed as specified user, otherwise it will be executed as cloudadmin.</dt>
+<dd>
+
+</dd>
+</dl>
+
+<h2 id="check_zypper_ref">check_zypper_ref</h2>
+
+<pre><code>The function attempts to run &#39;zypper ref&#39; and check for errors related to repositories.</code></pre>
+
+<dl>
+
+<dt id="instance---The-instance-object-on-which-the-Zypper-command-is-executed.-This-object-must-have-the-run_ssh_command-method-implemented1"><b>$instance</b> - The instance object on which the Zypper command is executed. This object must have the run_ssh_command method implemented.</dt>
+<dd>
+
+</dd>
+<dt id="runas---If-runas-defined-command-will-be-executed-as-specified-user-otherwise-it-will-be-executed-as-cloudadmin1"><b>runas</b> - If &#39;runas&#39; defined, command will be executed as specified user, otherwise it will be executed as cloudadmin.</dt>
 <dd>
 
 </dd>
