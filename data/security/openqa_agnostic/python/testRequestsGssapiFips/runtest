@@ -1,0 +1,58 @@
+#!/bin/bash
+# METADATA_START
+# ---
+# test: FIPS-mode GSSAPI/SPNEGO HTTPS authentication with python3-requests-gssapi
+# desc: >
+#   Verifies that python3-requests-gssapi authenticates over HTTPS with SPNEGO
+#   against a local FIPS-mode Kerberos realm and Apache mod_auth_gssapi, that
+#   only FIPS-approved AES256 enctypes are used, and that non-approved enctypes
+#   fail cleanly instead of silently falling back to them.
+# steps:
+#   - 1. Create a local Kerberos realm restricted to aes256-cts-hmac-sha1-96 and aes256-cts-hmac-sha384-192.
+#   - 2. Add a test user and an HTTP/<hostname -f> principal, export both to keytabs and run kinit.
+#   - 3. Protect a location on the Apache HTTPS virtual host with mod_auth_gssapi.
+#   - 4. Check that an unauthenticated request is rejected with a 401 Negotiate response.
+#   - 5. Authenticate with requests_gssapi.HTTPSPNEGOAuth and verify the response is 200.
+#   - 6. Verify with klist -e that the TGT and the HTTP service ticket use only FIPS-approved enctypes.
+#   - 7. Verify that requesting a non-approved enctype (arcfour-hmac) fails cleanly.
+#   - 8. Verify that FIPS mode refuses to create a key with a non-approved enctype.
+# requires: apache2, apache2-mod_auth_gssapi, krb5, krb5-server, krb5-client and python3-requests-gssapi
+# author: <qe-security@suse.de>
+# maintainer: QE Security <none@suse.de>
+# expected: all checks pass
+# platform: SLE15SP7
+# tags: security fips kerberos gssapi spnego requests-gssapi apache
+# ---
+# METADATA_END
+
+set -e
+
+# Source the helper script for argument handling
+source ../lib/helper.sh
+
+# Define files required for this test
+TEST_FILES=(test_requests_gssapi_fips.py krb5.conf kdc.conf apache-gssapi.conf)
+
+# Delegate argument processing to the helper
+handle_args "$0" "$@"
+
+ensure_root
+
+# Installing the packages is the caller's job: under openQA the wrapper module
+# tests/security/oqa_agnostic/fips_requests_gssapi.pm does it, a standalone run
+# is expected to have them in place already.
+
+# Run tests with pytest and generate junit xml results. Disable `set -e` around
+# pytest so that a non-zero pytest exit code does not abort this script before
+# results.xml has been produced. The outer agnosticTestRunner chains
+# `./runtest && mv results.xml ...`, so exit 0 here whenever results.xml was
+# generated; pytest failures are then surfaced by parse_extra_log('XUnit', ...)
+# from the uploaded XML.
+set +e
+pytest -v -s test_requests_gssapi_fips.py --junitxml=results.xml
+rc=$?
+set -e
+if [ -f results.xml ]; then
+    exit 0
+fi
+exit $rc

@@ -58,6 +58,7 @@ schedule:
     - console/coredump_collect
     - console/osinfo_db
     - console/ovn
+    - '{{requests_gssapi}}'
     - console/firewalld
     - console/nginx
     - console/gdb
@@ -66,6 +67,10 @@ schedule:
     - console/ssh_cleanup
     - '{{tests_for_x64}}'
 conditional_schedule:
+    requests_gssapi:
+        VERSION:
+            15-SP7:
+                - security/oqa_agnostic/fips_requests_gssapi
     tests_for_x64:
         ARCH:
             x86_64:
