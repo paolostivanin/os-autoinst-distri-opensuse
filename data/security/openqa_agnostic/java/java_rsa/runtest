@@ -1,0 +1,238 @@
+#!/bin/bash
+# METADATA_START
+# ---
+# test: java rsa
+# desc: Drives the RSA JCA tool chain end to end: key generation, OAEP encrypt/decrypt and SHA256withRSA sign/verify
+# steps:
+#   - compile the five RSA command line tools with javac
+#   - assert 100-bit RSA key generation is refused
+#   - assert 1024-bit RSA key generation is refused in FIPS mode, accepted otherwise
+#   - generate a 4096-bit key pair, which stays on disk as the FIPS capable pair for the steps below
+#   - assert both PEM files are present, non-empty and carry the expected headers
+#   - encrypt and decrypt a file with RSA/ECB/OAEPWithSHA-256AndMGF1Padding, compare against the original
+#     (skipped where no provider offers OAEP, since the remaining RSA ciphers are not approved key transport)
+#   - sign a file with SHA256withRSA and verify the signature against the public key
+#   - assert verifying a different file against the same signature is rejected
+# author: <qe-security@suse.de>
+# maintainer: QE Security <none@suse.de>
+# expected: results.tap reports all tests passed
+# platform: SLE 16.1
+# tags: security java FIPS RSA
+# ---
+# METADATA_END
+
+# Deliberately no 'set -e'. Several steps are expected to fail (key sizes a
+# FIPS provider must refuse), so every command's return code is captured by
+# hand. The outer agnosticTestRunner chains './runtest && mv results.tap ...',
+# so a non-zero exit here would discard the results; this script always writes
+# results.tap and always exits 0.
+source ../lib/helper.sh
+
+TEST_FILES=(RsaPemUtils.java RsaKeyGeneratorTest.java RsaEncryptor.java RsaDecryptor.java RsaSigner.java RsaVerifier.java)
+handle_args "$0" "$@"
+
+ensure_command_available "javac"
+
+RESULTS=()
+COUNT=0
+
+ok() {
+    COUNT=$((COUNT + 1))
+    RESULTS+=("ok $COUNT - $1")
+}
+
+nok() {
+    COUNT=$((COUNT + 1))
+    RESULTS+=("not ok $COUNT - $1")
+}
+
+skip() {
+    COUNT=$((COUNT + 1))
+    RESULTS+=("ok $COUNT - $1 # SKIP $2")
+}
+
+# TAP diagnostics. Only legal after the leading "<filename> .." line, which is
+# why results.tap is assembled in one go at the end rather than streamed.
+diag() {
+    [[ -n "$1" ]] || return 0
+    while IFS= read -r line; do
+        RESULTS+=("  # $line")
+    done <<< "$1"
+}
+
+report() {
+    {
+        # The openQA TAP parser takes the name of the extra test from a leading
+        # "<something>.<ext> .." line, and aborts on a plan that disagrees with
+        # the number of results, hence the counter.
+        echo "java_rsa.tap .."
+        echo "1..$COUNT"
+        [[ $COUNT -gt 0 ]] && printf '%s\n' "${RESULTS[@]}"
+    } > results.tap
+    echo "--- results.tap ---"
+    cat results.tap
+    exit 0
+}
+
+# FIPS mode: the job variable wins when the test module forwards it, otherwise
+# ask the kernel. Keeps the script runnable by hand outside openQA.
+if [[ -n "$FIPS_ENABLED" ]]; then
+    fips_mode="$FIPS_ENABLED"
+elif [[ -r /proc/sys/crypto/fips_enabled ]]; then
+    read -r fips_mode < /proc/sys/crypto/fips_enabled
+else
+    fips_mode=0
+fi
+echo "FIPS mode: $fips_mode"
+
+# 1: build
+if ! out=$(javac Rsa*.java 2>&1); then
+    nok "javac Rsa*.java"
+    diag "$out"
+    report
+fi
+ok "javac Rsa*.java"
+
+# 2: 100 bits is below the 512-bit floor every JCA provider enforces
+out=$(java RsaKeyGeneratorTest 100 2>&1)
+rc=$?
+if [[ $rc -ne 0 ]]; then
+    ok "100-bit RSA key generation is refused"
+else
+    nok "100-bit RSA key generation is refused"
+fi
+diag "$out"
+
+# 3: NIST SP 800-131A Rev. 2 disallows RSA key generation below 2048 bits, and
+# permits 1024-bit moduli for legacy signature verification only. A FIPS 140-3
+# validated provider must therefore refuse this; outside FIPS mode it is fine.
+out=$(java RsaKeyGeneratorTest 1024 2>&1)
+rc=$?
+if [[ $fips_mode -eq 1 ]]; then
+    if [[ $rc -ne 0 ]]; then
+        ok "1024-bit RSA key generation is refused in FIPS mode"
+    else
+        nok "1024-bit RSA key generation is refused in FIPS mode"
+    fi
+else
+    if [[ $rc -eq 0 ]]; then
+        ok "1024-bit RSA key generation succeeds outside FIPS mode"
+    else
+        nok "1024-bit RSA key generation succeeds outside FIPS mode"
+    fi
+fi
+diag "$out"
+
+# 4: last key generation wins, so the pair left on disk is the FIPS capable one
+out=$(java RsaKeyGeneratorTest 4096 2>&1)
+rc=$?
+if [[ $rc -eq 0 ]]; then
+    ok "4096-bit RSA key generation succeeds"
+else
+    nok "4096-bit RSA key generation succeeds"
+fi
+diag "$out"
+
+# 5: the generator claims to have written usable PEM, check that it did
+pem_problems=""
+for pem in public_key.pem:PUBLIC private_key.pem:PRIVATE; do
+    file="${pem%%:*}"
+    type="${pem##*:}"
+    if [[ ! -s "$file" ]]; then
+        pem_problems+="$file is missing or empty"$'\n'
+    elif ! grep -q -- "-----BEGIN $type KEY-----" "$file"; then
+        pem_problems+="$file does not carry a '$type KEY' PEM header"$'\n'
+    fi
+done
+if [[ -z "$pem_problems" ]]; then
+    ok "public_key.pem and private_key.pem are valid PEM"
+else
+    nok "public_key.pem and private_key.pem are valid PEM"
+    diag "${pem_problems%$'\n'}"
+fi
+
+# 6: inputs for the encrypt and sign steps
+if echo "hello world" > plaintext.txt && echo "goodbye world" > wrongplaintext.txt; then
+    ok "test input files created"
+else
+    nok "test input files created"
+fi
+
+# 7: encrypt. The reported modulus size is what proves the leftover pair is the
+# 4096-bit one and not a leftover from the 1024-bit step.
+out=$(java RsaEncryptor public_key.pem plaintext.txt enc.txt 2>&1)
+rc=$?
+if [[ $rc -eq 3 ]]; then
+    # No provider offers RSAES-OAEP. There is nothing to fall back to: the only
+    # other RSA ciphers on such a box are NoPadding and PKCS1Padding, and
+    # SP 800-56B Rev. 2 approves neither for key transport, so encrypting with
+    # one would test a scheme FIPS forbids. Skip the round trip instead and let
+    # the survey in the diagnostics record what the platform does offer. These
+    # steps run for real again the moment a provider registers OAEP.
+    reason="no provider offers RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
+    skip "encrypt plaintext.txt with the 4096-bit public key" "$reason"
+    diag "$out"
+    skip "decrypt enc.txt with the private key" "$reason"
+    skip "decrypted output matches the original plaintext" "$reason"
+else
+    if [[ $rc -eq 0 ]] && grep -q "Public key modulus size: 4096 bits" <<< "$out"; then
+        ok "encrypt plaintext.txt with the 4096-bit public key"
+    else
+        nok "encrypt plaintext.txt with the 4096-bit public key"
+    fi
+    diag "$out"
+
+    # 8: decrypt
+    out=$(java RsaDecryptor private_key.pem enc.txt newplaintext.txt 2>&1)
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+        ok "decrypt enc.txt with the private key"
+    else
+        nok "decrypt enc.txt with the private key"
+    fi
+    diag "$out"
+
+    # 9: round trip
+    out=$(cmp plaintext.txt newplaintext.txt 2>&1)
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+        ok "decrypted output matches the original plaintext"
+    else
+        nok "decrypted output matches the original plaintext"
+    fi
+    diag "$out"
+fi
+
+# 10: sign
+out=$(java RsaSigner private_key.pem plaintext.txt plaintext.txt.sig 2>&1)
+rc=$?
+if [[ $rc -eq 0 && -s plaintext.txt.sig ]]; then
+    ok "sign plaintext.txt with SHA256withRSA"
+else
+    nok "sign plaintext.txt with SHA256withRSA"
+    [[ -s plaintext.txt.sig ]] || diag "plaintext.txt.sig is missing or empty"
+fi
+diag "$out"
+
+# 11: the signature verifies against the file it was made from
+out=$(java RsaVerifier public_key.pem plaintext.txt plaintext.txt.sig 2>&1)
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "VERIFICATION SUCCESS" <<< "$out"; then
+    ok "signature over plaintext.txt is accepted"
+else
+    nok "signature over plaintext.txt is accepted"
+fi
+diag "$out"
+
+# 12: and is rejected for a different file. RsaVerifier exits 1 only for an
+# invalid signature and 2 for an error, so a crash cannot pass this step.
+out=$(java RsaVerifier public_key.pem wrongplaintext.txt plaintext.txt.sig 2>&1)
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "VERIFICATION FAILURE" <<< "$out"; then
+    ok "signature over plaintext.txt is rejected for wrongplaintext.txt"
+else
+    nok "signature over plaintext.txt is rejected for wrongplaintext.txt"
+fi
+diag "$out"
+
+report
