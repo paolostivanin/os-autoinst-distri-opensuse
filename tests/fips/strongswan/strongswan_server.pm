@@ -17,6 +17,8 @@ use lockapi;
 use mmapi qw(wait_for_children get_children);
 use package_utils 'install_package';
 use version_utils qw(package_version_cmp is_sle is_sle_micro);
+use Utils::Architectures 'is_s390x';
+use Utils::Systemd qw(disable_and_stop_service check_unit_file);
 
 sub run {
     my $self = shift;
@@ -42,6 +44,15 @@ sub run {
     my $host2_cert_pem = 'host2.cert.pem';
     my $local_ip = get_var('SERVER_IP', '10.0.2.101');
     my $remote_ip = get_var('CLIENT_IP', '10.0.2.102');
+
+    # setup_multimachine does not run on s390x. Add the known IP address
+    # to the default network device and stop the firewall instead.
+    my $net_dev;
+    if (is_s390x) {
+        $net_dev = script_output(q(ip route show default | awk '{print $5; exit}'));
+        assert_script_run("ip addr add $local_ip/24 dev $net_dev");
+        disable_and_stop_service($self->firewall, ignore_failure => 1) if check_unit_file($self->firewall);
+    }
 
     # Check version
     my $output = script_output('rpm -qa | grep strongswan');
@@ -132,11 +143,14 @@ sub run {
     mutex_wait('STRONGSWAN_HOST2_UP', (keys %$children)[0]);
 
     # Prepare dirs and copy the keys, certificates to the second host
-    exec_and_insert_password("ssh -o StrictHostKeyChecking=no root\@$remote_ip \"mkdir -p $conf_dir $ca_cert_dir $cert_dir $priv_dir\"");
-    exec_and_insert_password("scp -o StrictHostKeyChecking=no ca.cert.pem root\@$remote_ip:$ca_cert_dir/");
-    exec_and_insert_password("scp -o StrictHostKeyChecking=no host1.cert.pem root\@$remote_ip:$cert_dir/");
-    exec_and_insert_password("scp -o StrictHostKeyChecking=no host2.cert.pem root\@$remote_ip:$cert_dir/");
-    exec_and_insert_password("scp -o StrictHostKeyChecking=no host2.pem root\@$remote_ip:$priv_dir/");
+    # On s390x the client sshd also listens on port 2222, see strongswan_client
+    my $ssh_opts = '-o StrictHostKeyChecking=no';
+    $ssh_opts .= ' -o Port=2222' if is_s390x;
+    exec_and_insert_password("ssh $ssh_opts root\@$remote_ip \"mkdir -p $conf_dir $ca_cert_dir $cert_dir $priv_dir\"");
+    exec_and_insert_password("scp $ssh_opts ca.cert.pem root\@$remote_ip:$ca_cert_dir/");
+    exec_and_insert_password("scp $ssh_opts host1.cert.pem root\@$remote_ip:$cert_dir/");
+    exec_and_insert_password("scp $ssh_opts host2.cert.pem root\@$remote_ip:$cert_dir/");
+    exec_and_insert_password("scp $ssh_opts host2.pem root\@$remote_ip:$priv_dir/");
 
     mutex_create('STRONGSWAN_HOST1_SECRETS_COPIED');
 
@@ -185,6 +199,8 @@ sub run {
     }
 
     wait_for_children;
+
+    assert_script_run("ip addr del $local_ip/24 dev $net_dev") if is_s390x;
 }
 
 # Count the ESP packets from the client without tcpdump.

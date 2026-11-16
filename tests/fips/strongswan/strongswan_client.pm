@@ -15,7 +15,9 @@ use testapi;
 use utils;
 use lockapi;
 use package_utils 'install_package';
-use version_utils qw(package_version_cmp is_sle);
+use version_utils qw(package_version_cmp is_sle is_leap has_selinux);
+use Utils::Architectures 'is_s390x';
+use Utils::Systemd qw(disable_and_stop_service check_unit_file);
 
 sub run {
     my $self = shift;
@@ -25,10 +27,29 @@ sub run {
     # start the service without a reboot on immutable systems
     my @pkgs = qw(strongswan strongswan-hmac wget);
     push @pkgs, qw(strongswan-mysql strongswan-sqlite) if is_sle('>=16');
+    # semanage allows sshd on the extra port on s390x, see below
+    push @pkgs, 'policycoreutils-python-utils' if (is_s390x && has_selinux);
     install_package(join(' ', @pkgs), trup_apply => 1);
 
     my $remote_ip = get_var('SERVER_IP', '10.0.2.101');
     my $local_ip = get_var('CLIENT_IP', '10.0.2.102');
+
+    # setup_multimachine does not run on s390x. Add the known IP address
+    # to the default network device and stop the firewall instead.
+    # The server copies the keys with scp as root, so permit the root login.
+    # The s390x guests cannot connect to each other on port 22, so sshd also
+    # listens on port 2222, the same as in the 389ds test.
+    my $net_dev;
+    if (is_s390x) {
+        $net_dev = script_output(q(ip route show default | awk '{print $5; exit}'));
+        assert_script_run("ip addr add $local_ip/24 dev $net_dev");
+        disable_and_stop_service($self->firewall, ignore_failure => 1) if check_unit_file($self->firewall);
+        permit_root_ssh();
+        my $sshd_conf = (is_sle('<16') || is_leap('<16.0')) ? '/etc/ssh/sshd_config' : '/etc/ssh/sshd_config.d/50-strongswan-port.conf';
+        assert_script_run("printf 'Port 22\\nPort 2222\\n' >> $sshd_conf");
+        assert_script_run('semanage port -a -t ssh_port_t -p tcp 2222') if has_selinux;
+        systemctl('restart sshd');
+    }
 
     my ($conf, $conf_temp, $conf_backup) = '';
 
@@ -103,6 +124,8 @@ sub run {
 
     assert_script_run("ping -c 5 $remote_ip");
     mutex_create('PING_DONE');
+
+    assert_script_run("ip addr del $local_ip/24 dev $net_dev") if is_s390x;
 }
 
 1;
