@@ -1,0 +1,42 @@
+name: fips_strongswan
+description:    >
+    This is for the strongswan server and client multimachine test in FIPS
+    mode on SL Micro qcow images.
+schedule:
+    - '{{boot}}'
+    - transactional/host_config
+    # The tap network has no DHCP server. Configure the static network before
+    # the modules that need network access.
+    - '{{setup_multimachine}}'
+    - console/suseconnect_scc
+    - transactional/install_updates
+    - fips/fips_setup
+    - '{{strongswan}}'
+    - console/journal_check
+conditional_schedule:
+    # On x86_64 and aarch64 (tap network) use FIRST_BOOT_CONFIG=ignition with
+    # onlyignition.qcow2. The combustion script of ignition.qcow2 needs network
+    # access in the initrd, and the jeos-firstboot wizard stops at a network
+    # dialog when no network connection is active.
+    boot:
+        ARCH:
+            s390x:
+                - installation/bootloader_start
+                - boot/boot_to_desktop
+            x86_64:
+                - microos/disk_boot
+            aarch64:
+                - microos/disk_boot
+    # s390x has no tap network, the test modules add SERVER_IP and CLIENT_IP
+    setup_multimachine:
+        ARCH:
+            x86_64:
+                - network/setup_multimachine
+            aarch64:
+                - network/setup_multimachine
+    strongswan:
+        HOSTNAME:
+            server:
+                - fips/strongswan/strongswan_server
+            client:
+                - fips/strongswan/strongswan_client
