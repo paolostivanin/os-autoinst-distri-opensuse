@@ -15,13 +15,22 @@ use testapi;
 use utils;
 use lockapi;
 use mmapi qw(wait_for_children get_children);
-use version_utils qw(package_version_cmp is_sle);
+use package_utils 'install_package';
+use version_utils qw(package_version_cmp is_sle is_sle_micro);
 
 sub run {
     my $self = shift;
     select_console 'root-console';
-    zypper_call 'in strongswan strongswan-hmac tcpdump';
-    zypper_call 'in strongswan-mysql strongswan-sqlite wget' if is_sle('>=16');
+
+    # tcpdump is not shipped on SL Micro
+    my $has_tcpdump = !is_sle_micro;
+
+    # Install the packages transactional-aware: trup_apply lets us
+    # start the service without a reboot on immutable systems
+    my @pkgs = qw(strongswan strongswan-hmac wget);
+    push @pkgs, 'tcpdump' if $has_tcpdump;
+    push @pkgs, qw(strongswan-mysql strongswan-sqlite) if is_sle('>=16');
+    install_package(join(' ', @pkgs), trup_apply => 1);
 
     my ($version, $conf, $conf_temp, $conf_backup, $conf_dir) = '';
     my ($ca_cert_dir, $priv_dir, $cert_dir, $ipsec) = '';
@@ -144,29 +153,60 @@ sub run {
 
     systemctl 'is-active strongswan';
 
-    # Check the tcpdump result
-    my $tcpdump_log_file = '/tmp/tcpdump.log';
-    my $net_device = script_output("ip route | awk '/default/ {print \$5}'");
-    my $pid = background_script_run("tcpdump -n -i $net_device -e \"esp\" -vv > $tcpdump_log_file 2>&1");
-    mutex_create('TCPDUMP_READY');
+    if ($has_tcpdump) {
+        # Check the tcpdump result
+        my $tcpdump_log_file = '/tmp/tcpdump.log';
+        my $net_device = script_output("ip route | awk '/default/ {print \$5}'");
+        my $pid = background_script_run("tcpdump -n -i $net_device -e \"esp\" -vv > $tcpdump_log_file 2>&1");
+        mutex_create('TCPDUMP_READY');
 
-    mutex_wait('PING_DONE', (keys %$children)[0]);
+        mutex_wait('PING_DONE', (keys %$children)[0]);
 
-    assert_script_run("kill -15 $pid");
+        assert_script_run("kill -15 $pid");
 
-    my $num = script_output("cat $tcpdump_log_file | grep '$remote_ip > $local_ip: ESP' | wc -l");
+        my $num = script_output("cat $tcpdump_log_file | grep '$remote_ip > $local_ip: ESP' | wc -l");
 
-    if ($num == 5) {
-        record_info('tcpdump result is correct');
+        if ($num == 5) {
+            record_info('tcpdump result is correct');
+        }
+        else {
+            record_info('tcpdump result is wrong', result => 'fail');
+            $self->result('fail');
+        }
+
+        upload_logs('/tmp/tcpdump.log');
+    } else {
+        # The client waits for this mutex before it sends the pings
+        mutex_create('TCPDUMP_READY');
+
+        mutex_wait('PING_DONE', (keys %$children)[0]);
+
+        $self->check_esp_sa_counters($remote_ip, $local_ip);
     }
-    else {
-        record_info('tcpdump result is wrong', result => 'fail');
-        $self->result('fail');
-    }
-
-    upload_logs('/tmp/tcpdump.log');
 
     wait_for_children;
+}
+
+# Count the ESP packets from the client without tcpdump.
+# The kernel increments the packet counter of an inbound IPsec SA only
+# when it receives and decrypts an ESP packet for this SA.
+sub check_esp_sa_counters {
+    my ($self, $remote_ip, $local_ip) = @_;
+
+    my $xfrm = script_output("ip -s xfrm state list src $remote_ip dst $local_ip proto esp");
+    record_info('xfrm state', $xfrm);
+
+    # Add the counters of all the SAs, because a rekey can add one more SA
+    my $num = 0;
+    $num += $1 while ($xfrm =~ /lifetime current:\s*\d+\(bytes\),\s*(\d+)\(packets\)/g);
+
+    if ($num == 5) {
+        record_info('ESP count is correct', "The inbound SAs received $num ESP packets from $remote_ip");
+    }
+    else {
+        record_info('ESP count is wrong', "Expected 5 ESP packets from $remote_ip, the inbound SAs received $num", result => 'fail');
+        $self->result('fail');
+    }
 }
 
 1;

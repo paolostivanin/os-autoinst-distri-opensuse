@@ -14,15 +14,18 @@ use Mojo::Base 'consoletest';
 use testapi;
 use utils;
 use lockapi;
+use package_utils 'install_package';
 use version_utils qw(package_version_cmp is_sle);
 
 sub run {
     my $self = shift;
     select_console 'root-console';
 
-    # Install runtime dependencies
-    zypper_call("in strongswan strongswan-hmac tcpdump wget");
-    zypper_call 'in strongswan-mysql strongswan-sqlite wget' if is_sle('>=16');
+    # Install the runtime dependencies transactional-aware: trup_apply lets us
+    # start the service without a reboot on immutable systems
+    my @pkgs = qw(strongswan strongswan-hmac wget);
+    push @pkgs, qw(strongswan-mysql strongswan-sqlite) if is_sle('>=16');
+    install_package(join(' ', @pkgs), trup_apply => 1);
 
     my $remote_ip = get_var('SERVER_IP', '10.0.2.101');
     my $local_ip = get_var('CLIENT_IP', '10.0.2.102');
