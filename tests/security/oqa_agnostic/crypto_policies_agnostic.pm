@@ -25,7 +25,7 @@ use power_action_utils 'power_action';
 use Utils::Backends 'is_pvm';
 use package_utils 'install_package';
 use agnosticTestRunner;
-use utils 'reconnect_mgmt_console';
+use utils qw(reconnect_mgmt_console zypper_call);
 
 my %runner_args = (
     language => 'python',
@@ -40,6 +40,13 @@ sub run {
     install_package('crypto-policies crypto-policies-scripts bind gnutls mozilla-nss mozilla-nss-tools openssl', trup_reboot => 1);
     # a reboot on transactional systems leaves the VGA root console selected
     select_serial_terminal;
+    # VR ONLY, NOT FOR MERGE: no SLE crypto-policies ships CNSA-1.0 yet, take it from OBS
+    my $repo = 'https://download.opensuse.org/repositories/security:/tls/' . get_required_var('VERSION') . '/';
+    zypper_call("ar -f --no-gpgcheck $repo vr_security_tls");
+    zypper_call('--gpg-auto-import-keys ref vr_security_tls');
+    zypper_call('in -f --allow-vendor-change --from vr_security_tls crypto-policies crypto-policies-scripts');
+    zypper_call('rr vr_security_tls');
+    record_info('VR crypto-policies', script_output('rpm -q crypto-policies crypto-policies-scripts; ls /usr/share/crypto-policies/policies/'));
 
     # Download the test once, it stays in the home directory over the reboots
     my $setup = agnosticTestRunner->new({%runner_args})->setup();
