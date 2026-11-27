@@ -1,4 +1,4 @@
-# Copyright 2021-2022 SUSE LLC
+# Copyright 2021-2026 SUSE LLC
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 # Summary: Base module for Lynis test cases
