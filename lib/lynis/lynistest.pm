@@ -350,54 +350,31 @@ sub compare_lynis_section_content {
         }
     }
 
+    # Check the WARNING|EXPOSED|NONE|SUGGESTION findings line by line, as the
+    # ERROR|WEAK|UNSAFE findings below. Before, one line that matched an
+    # exception made the full section "ok", whatever the other lines were.
+    # Known findings that are not in the baseline section:
+    my @softfail_exceptions = (
+        'Checking for password protection.*WARNING',
+        'Checking /etc/hosts .*hostname.*SUGGESTION',
+        'CPU support: No PAE or NoeXecute supported.*NONE',
+        'Program update status.*WARNING',
+        'Minimal of 2 responsive nameservers.*WARNING',
+        # WARNING if the system has security patches that are not installed
+        'Using Zypper to find vulnerable packages.*(NONE|WARNING)',
+        'Test .* had a long execution: .* seconds',
+        'getty.*tty.*service',
+        'Open port .* not allowed.*WARNING',
+        # "systemd-analyze security" rates most services EXPOSED, and the list
+        # changes with each service update. The UNSAFE ratings are checked.
+        '\.service:.*EXPOSED'
+    );
     for my $s_lynis (@lynis_softfail) {
-        $s_new = "\\[.*$s_lynis.*\\]";
-        $ret = grep(/$s_new/, @section_current);
-        if ($ret) {
-            $result = "softfail";
-
-            # Filter out some exceptions allowed:
-            # "Boot_and_services": "[4C- Checking for password protection[23C [ WARNING ]"
-            # "Boot_and_services": "[8C- serial-getty@hvc0.service:[25C [ UNSAFE ]"
-            # "Name services": "[4C- Checking /etc/hosts (hostname)[25C [ SUGGESTION ]"
-            # "Kernel: "[4CCPU support: No PAE or NoeXecute supported[15C [ NONE ]"
-            # "Initializing_program": "[2C- Program update status... [32C [ WARNING ]"
-            # "Networking": "[[4C- Minimal of 2 responsive nameservers^[[20C [ WARNING ]"
-            # "Networking": "[4COpen port 5901 not allowed[31C [ WARNING ]"
-            # "Ports and packages": "Using Zypper to find vulnerable packages[17C [ NONE ]"
-            # "File systems": "[2C- Total without nodev:15 noexec:20 nosuid:13 ro or noexec (W^X): 20 of total 47[0C"
-            # "Binary integrity": "[4CNo bad RPATH usage found in 6288 executables[13C [ OK ]"
-            # "Cryptography": "[2C- HW RNG & rngd[44C [ YES ]"
-            # "Security_frameworks": "Found 96 unconfined processes"
-            my @exceptions = (
-                "Checking for password protection.*WARNING.*",
-                "Checking /etc/hosts .*hostname.*SUGGESTION.*",
-                "CPU support: No PAE or NoeXecute supported.*NONE.*",
-                "Program update status.*WARNING.*",
-                "Minimal of 2 responsive nameservers.*WARNING.*",
-                "Using Zypper to find vulnerable packages.*NONE.*",
-                "Test .* had a long execution: .* seconds.*",
-                "getty.*tty.*service.*",
-                "Total without nodev:.* noexec:.* nosuid:.* ro or noexec .*: .* of total.*",
-                "No bad RPATH usage found in.*executables.*OK.*",
-                "Open port .* not allowed.*WARNING.*",
-                "HW RNG .* rngd.*",
-                "Found .* unconfined processes"
-            );
-            for my $exception (@exceptions) {
-                if (grep(/$exception/, @section_current)) {
-                    $result = "ok";
-                    # NOTE: do *NOT* return at here otherwise following checks for
-                    # "Settings" "LYNIS_ERROR" and "LYNIS_WARNING" will not be done
-                    # then test case will be fake "PASS" and poo/bug will be missed:
-                    # return $result;
-                }
-            }
-
-            if ("$result" eq "softfail") {
-                record_soft_failure("poo#91383, found $ret [ $s_lynis ] in current output");
-            }
-        }
+        my @found = grep { /\[.*$s_lynis.*\]/ } @section_current;
+        my @unknown = unknown_findings(\@section_baseline, \@found, \@softfail_exceptions);
+        next unless @unknown;
+        $result = "softfail";
+        record_soft_failure("poo#91383, found " . scalar(@unknown) . " [ $s_lynis ] in current output:\n" . join("\n", @unknown));
     }
 
     my @findings = grep {
