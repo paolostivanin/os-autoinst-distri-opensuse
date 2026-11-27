@@ -19,8 +19,10 @@ sub run {
 
     select_text_console;
 
-    add_suseconnect_product("PackageHub", undef, undef, undef, 300, 1) if is_sle;
-    add_suseconnect_product("sle-module-legacy", undef, undef, undef, 300, 1) if is_sle;
+    # lynis comes from PackageHub and requires net-tools-deprecated from the
+    # Legacy module (poo#104073). Use the default number of retries.
+    add_suseconnect_product("PackageHub", undef, undef, undef, 300) if is_sle;
+    add_suseconnect_product("sle-module-legacy", undef, undef, undef, 300) if is_sle;
     # Set timeout to 300s as the default 90s is not enough in some situations
     zypper_call("--gpg-auto-import-keys in lynis", timeout => 300);
 
