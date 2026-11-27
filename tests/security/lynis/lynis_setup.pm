@@ -28,8 +28,10 @@ sub run {
     my $results = script_output("rpm -qi lynis");
     record_info("Pkg_ver", "Lynix packages' version is: $results");
 
-    # Download the $LYNIS_BASELINE_FILE ($lynis_baseline_file_bydefault) baseline
-    assert_script_run("wget --quiet " . data_url("lynis/$lynis_baseline_file") . " -O " . "$dir" . "$lynis_baseline_file");
+    # Download the $LYNIS_BASELINE_FILE ($lynis_baseline_file_default) baseline.
+    # Retry, as the download from the worker can fail for a short time, and
+    # use -nv instead of --quiet so that the log shows why it failed.
+    script_retry("wget -nv " . data_url("lynis/$lynis_baseline_file") . " -O $dir$lynis_baseline_file", retry => 3, delay => 10, timeout => 60);
 
     # Install server software, e.g., apache
     zypper_call("in apache2 apache2-utils");
