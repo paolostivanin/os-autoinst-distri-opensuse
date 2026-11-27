@@ -206,13 +206,23 @@ sub parse_lynis_section_content {
     return @section_content;
 }
 
+# Return the findings that are neither in the baseline section nor match one
+# of the exception regexes. A section that differs from the baseline in any
+# line is checked on its own, so known findings are filtered one by one, not
+# for the whole section.
+sub unknown_findings {
+    my ($baseline, $findings, $exceptions) = @_;
+    my %in_baseline = map { (s/\s+$//r) => 1 } @$baseline;
+    return grep {
+        my $line = $_;
+        !$in_baseline{$line =~ s/\s+$//r} && !grep { $line =~ /$_/ } @$exceptions
+    } @$findings;
+}
+
 # Return the ERROR|WEAK|UNSAFE findings that are neither in the baseline
-# section nor in the exception list. A section that differs from the baseline
-# in any line is checked on its own, so known findings are filtered one by
-# one, not for the whole section.
+# section nor in the exception list.
 sub check_exceptions {
     my ($baseline, $findings) = @_;
-    my %in_baseline = map { (s/\s+$//r) => 1 } @$baseline;
     # Findings of other baselines that also show up in this one, e.g. after a
     # maintenance update, taken from the baselines of 15-SP4 to 15-SP7.
     my @exceptions = (
@@ -260,10 +270,7 @@ sub check_exceptions {
         '.*/etc/issue contents.*WEAK',
         '.*MOR variable not found.*WEAK'
     );
-    return grep {
-        my $line = $_;
-        !$in_baseline{$line =~ s/\s+$//r} && !grep { $line =~ /$_/ } @exceptions
-    } @$findings;
+    return unknown_findings($baseline, $findings, \@exceptions);
 }
 
 # Compare the contents between "baseline" and "current"
